@@ -345,3 +345,44 @@ html[data-theme="dark"] .role-button:hover { background: var(--surface); }
   .row-actions > * { width: 100%; }
   .compact-actions { display: grid; grid-template-columns: 1fr; }
 }
+
+/* Status pengerjaan murid */
+.material-card.is-done {
+  border-color: color-mix(in srgb, var(--success) 44%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 7%, var(--surface)), var(--surface));
+}
+.status-stack { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 7px; }
+.completion-badge, .loaded-answer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 13%, transparent);
+  font-size: .74rem;
+  font-weight: 900;
+}
+.attempt-resume {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 16px;
+  margin-bottom: 16px;
+  border-color: color-mix(in srgb, var(--success) 42%, var(--border));
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+.attempt-resume strong { color: var(--success); }
+.attempt-resume p { margin: 3px 0 0; color: var(--muted); }
+.question-card.has-loaded-answer {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 5%, var(--surface)), var(--surface));
+}
+.question-heading .loaded-answer-badge { margin-left: 7px; vertical-align: middle; }
+
+@media (max-width: 760px) {
+  .attempt-resume { align-items: stretch; flex-direction: column; }
+  .attempt-resume .secondary-button { width: 100%; }
+}
