@@ -29,6 +29,25 @@ export type MaterialCardData = {
   packageId?: string | null;
   packageName?: string | null;
   questionCount: number;
+  isDone?: boolean;
+  latestScore?: number;
+  latestMaxScore?: number;
+  latestSubmittedAt?: string | null;
+  attemptCount?: number;
+};
+
+export type LatestAttemptView = {
+  id: string;
+  totalScore: number;
+  maxScore: number;
+  submittedAt: string | null;
+  attemptNumber: number;
+  answers: Record<string, string>;
+  results: Record<string, {
+    isCorrect: boolean;
+    scoreObtained: number;
+    pronunciationScore?: number | null;
+  }>;
 };
 
 export type MaterialDetail = MaterialCardData & {
@@ -274,6 +293,95 @@ export async function getTeacherStats(teacherId: string) {
     prisma.studentAttempt.count({ where: { quiz: { material: { createdById: teacherId } }, status: "SUBMITTED" } })
   ]);
   return { packages, materials, published, quizzes, attempts };
+}
+
+export async function getStudentMaterialProgressMap(studentId: string, materialIds: string[]) {
+  const uniqueMaterialIds = Array.from(new Set(materialIds.filter(Boolean)));
+  if (!uniqueMaterialIds.length) return {} as Record<string, Pick<MaterialCardData, "isDone" | "latestScore" | "latestMaxScore" | "latestSubmittedAt" | "attemptCount">>;
+
+  const attempts = await prisma.studentAttempt.findMany({
+    where: {
+      studentId,
+      status: "SUBMITTED",
+      quiz: { materialId: { in: uniqueMaterialIds } }
+    },
+    select: {
+      id: true,
+      totalScore: true,
+      maxScore: true,
+      submittedAt: true,
+      createdAt: true,
+      quiz: { select: { materialId: true } }
+    },
+    orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }]
+  });
+
+  const progress: Record<string, Pick<MaterialCardData, "isDone" | "latestScore" | "latestMaxScore" | "latestSubmittedAt" | "attemptCount">> = {};
+
+  for (const attempt of attempts) {
+    const materialId = attempt.quiz.materialId;
+    const current = progress[materialId];
+    if (!current) {
+      progress[materialId] = {
+        isDone: true,
+        latestScore: attempt.totalScore,
+        latestMaxScore: attempt.maxScore,
+        latestSubmittedAt: attempt.submittedAt?.toISOString() ?? null,
+        attemptCount: 1
+      };
+    } else {
+      current.attemptCount = (current.attemptCount ?? 1) + 1;
+    }
+  }
+
+  return progress;
+}
+
+function answerValue(answer: { answerText: string | null; answerJson: Prisma.JsonValue | null }) {
+  if (typeof answer.answerText === "string") return answer.answerText;
+  if (answer.answerJson && typeof answer.answerJson === "object" && !Array.isArray(answer.answerJson) && "value" in answer.answerJson) {
+    const value = (answer.answerJson as { value?: unknown }).value;
+    return typeof value === "string" ? value : "";
+  }
+  return "";
+}
+
+export async function getLatestQuizAttempt(studentId: string, quizId: string): Promise<LatestAttemptView | null> {
+  const [attemptNumber, latest] = await Promise.all([
+    prisma.studentAttempt.count({ where: { studentId, quizId, status: "SUBMITTED" } }),
+    prisma.studentAttempt.findFirst({
+      where: { studentId, quizId, status: "SUBMITTED" },
+      include: {
+        answers: {
+          select: {
+            questionId: true,
+            answerText: true,
+            answerJson: true,
+            isCorrect: true,
+            scoreObtained: true,
+            pronunciationScore: true
+          }
+        }
+      },
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }]
+    })
+  ]);
+
+  if (!latest) return null;
+
+  return {
+    id: latest.id,
+    totalScore: latest.totalScore,
+    maxScore: latest.maxScore,
+    submittedAt: latest.submittedAt?.toISOString() ?? null,
+    attemptNumber,
+    answers: Object.fromEntries(latest.answers.map((answer) => [answer.questionId, answerValue(answer)])),
+    results: Object.fromEntries(latest.answers.map((answer) => [answer.questionId, {
+      isCorrect: answer.isCorrect,
+      scoreObtained: answer.scoreObtained,
+      pronunciationScore: answer.pronunciationScore
+    }]))
+  };
 }
 
 export async function getStudentProgress(studentId: string) {
