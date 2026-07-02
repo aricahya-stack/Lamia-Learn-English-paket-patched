@@ -66,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const user = await requireRole(["TEACHER", "SUPER_ADMIN"]);
   const { id } = await params;
   const permission = await canEditMaterial(id, user);
-  if (!permission) return NextResponse.json({ ok: false, message: "Materi tidak ditemukan." }, { status: 404 });
+  if (permission === null) return NextResponse.json({ ok: false, message: "Materi tidak ditemukan." }, { status: 404 });
   if (permission === false) return NextResponse.json({ ok: false, message: "Anda tidak berhak mengubah materi ini." }, { status: 403 });
 
   const formData = await request.formData();
@@ -109,7 +109,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const user = await requireRole(["TEACHER", "SUPER_ADMIN"]);
   const { id } = await params;
   const permission = await canEditMaterial(id, user);
-  if (!permission) return NextResponse.json({ ok: false, message: "Materi tidak ditemukan." }, { status: 404 });
+  if (permission === null) return NextResponse.json({ ok: false, message: "Materi tidak ditemukan." }, { status: 404 });
   if (permission === false) return NextResponse.json({ ok: false, message: "Anda tidak berhak menghapus materi ini." }, { status: 403 });
 
   await prisma.material.delete({ where: { id } });
