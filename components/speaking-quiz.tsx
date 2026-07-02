@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, MicOff, RotateCcw, Volume2 } from "lucide-react";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
@@ -45,6 +45,7 @@ type Props = {
   sampleText?: string;
   minScore?: number;
   maxAttempts?: number;
+  initialValue?: string;
   onAnswer: (questionId: string, value: string) => void;
 };
 
@@ -105,12 +106,16 @@ async function requestMicrophoneAccess() {
   stream.getTracks().forEach((track) => track.stop());
 }
 
-export function SpeakingQuiz({ questionId, targetText, sampleText, minScore = 70, maxAttempts = 3, onAnswer }: Props) {
-  const [recognizedText, setRecognizedText] = useState("");
+export function SpeakingQuiz({ questionId, targetText, sampleText, minScore = 70, maxAttempts = 3, initialValue = "", onAnswer }: Props) {
+  const [recognizedText, setRecognizedText] = useState(initialValue);
   const [listening, setListening] = useState(false);
   const [attemptCount, setAttemptCount] = useState(0);
   const [error, setError] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  useEffect(() => {
+    setRecognizedText(initialValue);
+  }, [initialValue]);
 
   const result = useMemo(() => scorePronunciation(targetText, recognizedText), [targetText, recognizedText]);
   const passed = recognizedText ? result.score >= minScore : false;
