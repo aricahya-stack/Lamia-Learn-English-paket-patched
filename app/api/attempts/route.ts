@@ -101,6 +101,8 @@ export async function POST(request: Request) {
     };
   });
 
+  const submittedAt = new Date();
+
   const attempt = await prisma.studentAttempt.create({
     data: {
       student: { connect: { id: user.id } },
@@ -108,10 +110,19 @@ export async function POST(request: Request) {
       status: AttemptStatus.SUBMITTED,
       totalScore,
       maxScore,
-      submittedAt: new Date(),
+      submittedAt,
       answers: { create: answerRows }
     }
   });
 
-  return NextResponse.json({ ok: true, attemptId: attempt.id, totalScore, maxScore });
+  const attemptNumber = await prisma.studentAttempt.count({ where: { studentId: user.id, quizId: quiz.id, status: AttemptStatus.SUBMITTED } });
+
+  return NextResponse.json({
+    ok: true,
+    attemptId: attempt.id,
+    totalScore,
+    maxScore,
+    submittedAt: attempt.submittedAt?.toISOString() ?? submittedAt.toISOString(),
+    attemptNumber
+  });
 }
