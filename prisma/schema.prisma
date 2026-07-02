@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum Skill {
+  READING
+  LISTENING
+  GRAMMAR
+}
+
+enum MaterialStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MATCHING
+  SHORT_ANSWER
+  TRUE_FALSE
+  FILL_BLANK
+  WORD_ARRANGEMENT
+  SENTENCE_ARRANGEMENT
+  LISTEN_AND_CHOOSE
+  LISTEN_AND_TYPE
+  PICTURE_CHOICE
+  AUDIO_MATCHING
+  ODD_ONE_OUT
+  LABEL_PICTURE
+  PRONUNCIATION_CHECK
+  LISTEN_AND_REPEAT
+  READ_ALOUD
+  SPEAKING_PROMPT
+}
+
+enum AttemptStatus {
+  STARTED
+  SUBMITTED
+  REVIEWED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacherClasses ClassRoom[] @relation("TeacherClasses")
+  materials      Material[]  @relation("MaterialCreator")
+  packages       LearningPackage[] @relation("PackageCreator")
+  enrollments    Enrollment[]
+  attempts       StudentAttempt[]
+  pronunciationAttempts PronunciationAttempt[]
+}
+
+model ClassRoom {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  grade       String?
+  teacherId   String
+  teacher     User     @relation("TeacherClasses", fields: [teacherId], references: [id])
+  enrollments Enrollment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Enrollment {
+  id        String    @id @default(cuid())
+  classId   String
+  studentId String
+  classRoom ClassRoom @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([classId, studentId])
+}
+
+model LearningPackage {
+  id          String         @id @default(cuid())
+  packageCode String         @unique
+  name        String
+  description String?
+  level       String?
+  status      MaterialStatus @default(PUBLISHED)
+  createdById String
+  createdBy   User           @relation("PackageCreator", fields: [createdById], references: [id])
+  materials   Material[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model Material {
+  id                 String         @id @default(cuid())
+  materialCode       String
+  title              String
+  skill              Skill
+  level              String
+  theme              String
+  description        String?
+  instruction        String?
+  contentHtml        String?
+  contentText        String?
+  imageUrl           String?
+  audioUrl           String?
+  defaultVoiceType   String?        @default("female")
+  defaultLanguage    String?        @default("en-US")
+  defaultSpeechRate  Float?         @default(0.85)
+  status             MaterialStatus @default(DRAFT)
+  packageId          String?
+  package            LearningPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  createdById        String
+  createdBy          User           @relation("MaterialCreator", fields: [createdById], references: [id])
+  subMaterials       SubMaterial[]
+  objectives         LearningObjective[]
+  quizzes            Quiz[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([packageId, materialCode])
+  @@index([packageId])
+  @@index([skill, level, theme])
+}
+
+model SubMaterial {
+  id           String   @id @default(cuid())
+  materialId   String
+  material     Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  title        String
+  orderNo      Int
+  contentHtml  String?
+  contentText  String?
+  imageUrl     String?
+  audioUrl     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([materialId, orderNo])
+}
+
+model LearningObjective {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  orderNo    Int
+  objective  String
+
+  @@unique([materialId, orderNo])
+}
+
+model Quiz {
+  id          String     @id @default(cuid())
+  quizCode    String     @unique
+  materialId  String
+  material    Material   @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  title       String
+  instruction String?
+  timeLimit   Int?
+  passScore   Int?       @default(70)
+  questions   Question[]
+  attempts    StudentAttempt[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Question {
+  id              String         @id @default(cuid())
+  quizId          String
+  quiz            Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  orderNo         Int
+  type            QuestionType
+  questionText    String?
+  questionHtml    String?
+  questionImageUrl String?
+  questionAudioUrl String?
+  correctAnswer   String?
+  acceptableAnswers Json?
+  targetText      String?
+  pronunciationMode String?      @default("SENTENCE")
+  minPronunciationScore Int?     @default(70)
+  allowRetry      Boolean        @default(true)
+  maxAttempts     Int?           @default(3)
+  sampleAudioUrl  String?
+  useBrowserTts   Boolean        @default(true)
+  score           Int            @default(10)
+  explanation     String?
+  options         QuestionOption[]
+  matchingPairs   MatchingPair[]
+  answers         StudentAnswer[]
+  pronunciationAttempts PronunciationAttempt[]
+
+  @@unique([quizId, orderNo])
+}
+
+model QuestionOption {
+  id          String   @id @default(cuid())
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionLabel String
+  optionText  String?
+  optionImageUrl String?
+  optionAudioUrl String?
+  isCorrect   Boolean  @default(false)
+
+  @@unique([questionId, optionLabel])
+}
+
+model MatchingPair {
+  id             String   @id @default(cuid())
+  questionId     String
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  leftItem       String
+  rightItem      String
+  leftMediaUrl   String?
+  rightMediaUrl  String?
+}
+
+model StudentAttempt {
+  id          String        @id @default(cuid())
+  studentId   String
+  student     User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  quizId      String
+  quiz        Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  status      AttemptStatus @default(STARTED)
+  totalScore  Int           @default(0)
+  maxScore    Int           @default(0)
+  submittedAt DateTime?
+  createdAt   DateTime      @default(now())
+  answers     StudentAnswer[]
+}
+
+model StudentAnswer {
+  id             String         @id @default(cuid())
+  attemptId      String
+  attempt        StudentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerText     String?
+  answerJson     Json?
+  recognizedText String?
+  pronunciationScore Int?
+  wrongWords     Json?
+  recordedAudioUrl String?
+  isCorrect      Boolean        @default(false)
+  scoreObtained  Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  @@unique([attemptId, questionId])
+}
+
+model PronunciationAttempt {
+  id                 String   @id @default(cuid())
+  studentId          String
+  student            User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  questionId         String
+  question           Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  targetText         String
+  recognizedText     String?
+  score              Int      @default(0)
+  wrongWords         Json?
+  recordedAudioUrl   String?
+  browserInfo        String?
+  createdAt          DateTime @default(now())
+}
