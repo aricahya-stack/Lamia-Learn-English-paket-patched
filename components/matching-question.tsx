@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 
 type MatchingPair = { left: string; right: string };
@@ -9,6 +9,7 @@ type Props = {
   questionId: string;
   pairs: MatchingPair[];
   submitted?: boolean;
+  initialValue?: string;
   onAnswer: (questionId: string, value: string) => void;
 };
 
@@ -27,6 +28,15 @@ export function serializeMatchingAnswer(matches: Record<string, string>) {
   return JSON.stringify(matches);
 }
 
+function parseMatchingAnswer(rawAnswer = "") {
+  try {
+    const parsed = JSON.parse(rawAnswer || "{}") as Record<string, string>;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export function scoreMatchingAnswer(pairs: MatchingPair[] = [], rawAnswer = "") {
   if (!pairs.length) return { correct: 0, total: 0, isCorrect: false };
 
@@ -41,9 +51,14 @@ export function scoreMatchingAnswer(pairs: MatchingPair[] = [], rawAnswer = "") 
   return { correct, total: pairs.length, isCorrect: correct === pairs.length };
 }
 
-export function MatchingQuestion({ questionId, pairs, submitted = false, onAnswer }: Props) {
+export function MatchingQuestion({ questionId, pairs, submitted = false, initialValue = "", onAnswer }: Props) {
   const [selectedLeft, setSelectedLeft] = useState<string>("");
-  const [matches, setMatches] = useState<Record<string, string>>({});
+  const [matches, setMatches] = useState<Record<string, string>>(() => parseMatchingAnswer(initialValue));
+
+  useEffect(() => {
+    setMatches(parseMatchingAnswer(initialValue));
+    setSelectedLeft("");
+  }, [initialValue]);
 
   const rightItems = useMemo(() => shuffleStable(pairs.map((pair) => pair.right)), [pairs]);
   const result = scoreMatchingAnswer(pairs, serializeMatchingAnswer(matches));
