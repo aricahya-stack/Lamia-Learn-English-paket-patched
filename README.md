@@ -139,3 +139,31 @@ npm run db:push
 npm run db:seed
 npm run dev
 ```
+
+# Patch Student Answers & Progress
+
+Perbaikan:
+
+1. Jawaban terakhir siswa dimuat ulang saat membuka materi yang sama.
+2. Kartu materi di dalam paket diberi tanda warna berbeda jika sudah dikerjakan.
+3. Kuis menampilkan panel “Sudah dikerjakan” beserta nilai terakhir, percobaan keberapa, dan tanggal submit.
+4. Pilihan radio, input teks, matching, dan speaking akan terisi dari jawaban terakhir.
+5. Siswa tetap bisa mengerjakan ulang dan menyimpan percobaan baru.
+6. API `/api/attempts` mengembalikan `submittedAt` dan `attemptNumber` setelah submit.
+
+File berubah:
+
+- lib/materials.ts
+- components/material-card.tsx
+- components/matching-question.tsx
+- components/speaking-quiz.tsx
+- components/quiz-renderer.tsx
+- app/api/attempts/route.ts
+- app/dashboard/student/packages/[id]/page.tsx
+- app/dashboard/student/materials/[id]/page.tsx
+- app/globals.css
+
+Catatan:
+
+Patch ini tidak menambah tabel baru. Tidak perlu `db:push` kecuali ada perubahan schema lain di luar patch ini.
+
