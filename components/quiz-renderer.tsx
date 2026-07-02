@@ -1,12 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Headphones, Loader2, Volume2 } from "lucide-react";
+import { CheckCircle2, Headphones, Loader2, RotateCcw, Volume2 } from "lucide-react";
 import { MatchingQuestion, scoreMatchingAnswer } from "@/components/matching-question";
 import { SpeakingQuiz } from "@/components/speaking-quiz";
-import type { QuestionView } from "@/lib/materials";
+import type { LatestAttemptView, QuestionView } from "@/lib/materials";
 
-type Props = { quizId: string; questions: QuestionView[] };
+type Props = {
+  quizId: string;
+  questions: QuestionView[];
+  latestAttempt?: LatestAttemptView | null;
+};
 
 const SPEAKING_TYPES = ["PRONUNCIATION_CHECK", "LISTEN_AND_REPEAT", "READ_ALOUD", "SPEAKING_PROMPT"];
 
@@ -34,11 +38,21 @@ function scoreSpeaking(target: string, recognized: string) {
   return Math.round((correct / targetWords.length) * 100);
 }
 
-export function QuizRenderer({ quizId, questions }: Props) {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
+function formatDate(value?: string | null) {
+  if (!value) return "tanggal tidak tersedia";
+  try {
+    return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  } catch {
+    return "tanggal tidak tersedia";
+  }
+}
+
+export function QuizRenderer({ quizId, questions, latestAttempt = null }: Props) {
+  const [answers, setAnswers] = useState<Record<string, string>>(latestAttempt?.answers ?? {});
+  const [submitted, setSubmitted] = useState(Boolean(latestAttempt));
+  const [savedAttempt, setSavedAttempt] = useState<LatestAttemptView | null>(latestAttempt);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessage, setSaveMessage] = useState(latestAttempt ? "Jawaban terakhir sudah dimuat. Siswa tetap boleh mengerjakan ulang." : "");
 
   const score = useMemo(() => {
     return questions.reduce((sum, q) => {
@@ -58,6 +72,17 @@ export function QuizRenderer({ quizId, questions }: Props) {
 
   const maxScore = questions.reduce((sum, q) => sum + q.score, 0);
 
+  function updateAnswer(questionId: string, value: string) {
+    setAnswers((current) => ({ ...current, [questionId]: value }));
+  }
+
+  function clearLoadedAnswers() {
+    setAnswers({});
+    setSubmitted(false);
+    setSavedAttempt(null);
+    setSaveMessage("Jawaban dikosongkan. Silakan mulai percobaan baru.");
+  }
+
   async function submitQuiz() {
     setSubmitted(true);
     setSaving(true);
@@ -71,7 +96,17 @@ export function QuizRenderer({ quizId, questions }: Props) {
       });
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.message || "Gagal menyimpan nilai.");
-      setSaveMessage(`Nilai tersimpan: ${data.totalScore}/${data.maxScore}.`);
+      const nextAttempt: LatestAttemptView = {
+        id: data.attemptId,
+        totalScore: data.totalScore,
+        maxScore: data.maxScore,
+        submittedAt: data.submittedAt ?? new Date().toISOString(),
+        attemptNumber: data.attemptNumber ?? ((savedAttempt?.attemptNumber ?? 0) + 1),
+        answers,
+        results: {}
+      };
+      setSavedAttempt(nextAttempt);
+      setSaveMessage(`Percobaan baru tersimpan: ${data.totalScore}/${data.maxScore}. Siswa tetap dapat mengerjakan ulang.`);
     } catch (error) {
       setSaveMessage(error instanceof Error ? error.message : "Nilai belum tersimpan.");
     } finally {
@@ -85,6 +120,17 @@ export function QuizRenderer({ quizId, questions }: Props) {
         <div><p className="eyebrow">Kuis Interaktif</p><h3>Latihan Materi</h3></div>
         {submitted ? <span className="badge warning">Skor {score}/{maxScore}</span> : null}
       </div>
+
+      {savedAttempt ? (
+        <div className="attempt-resume card">
+          <div>
+            <strong>Sudah dikerjakan</strong>
+            <p>Jawaban terakhir dari percobaan ke-{savedAttempt.attemptNumber} sudah dimuat. Nilai terakhir: {savedAttempt.totalScore}/{savedAttempt.maxScore} • {formatDate(savedAttempt.submittedAt)}.</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={clearLoadedAnswers}><RotateCcw size={16} /> Kosongkan Jawaban</button>
+        </div>
+      ) : null}
+
       <div className="question-list">
         {questions.map((question, index) => {
           const isChoice = question.options?.length;
@@ -99,13 +145,15 @@ export function QuizRenderer({ quizId, questions }: Props) {
             : question.type === "MATCHING"
               ? Boolean(matchingScore?.isCorrect)
               : question.correctAnswer && normalize(answer) === normalize(question.correctAnswer);
+          const hasLoadedAnswer = Boolean(savedAttempt?.answers?.[question.id]);
 
           return (
-            <article className="question-card" key={question.id}>
+            <article className={`question-card ${hasLoadedAnswer ? "has-loaded-answer" : ""}`} key={question.id}>
               <div className="question-heading">
                 <span className="question-number">{index + 1}</span>
                 <div>
                   <span className="badge">{question.type.replaceAll("_", " ")}</span>
+                  {hasLoadedAnswer ? <span className="loaded-answer-badge">Jawaban sebelumnya dimuat</span> : null}
                   <h3>{question.text}</h3>
                   {needAudio ? <BrowserAudioButton text={question.text.replace(/^.*:/, "")} /> : null}
                 </div>
@@ -117,27 +165,29 @@ export function QuizRenderer({ quizId, questions }: Props) {
                   sampleText={question.sampleText}
                   minScore={question.minScore}
                   maxAttempts={question.maxAttempts}
-                  onAnswer={(questionId, value) => setAnswers((current) => ({ ...current, [questionId]: value }))}
+                  initialValue={savedAttempt?.answers?.[question.id] ?? ""}
+                  onAnswer={updateAnswer}
                 />
               ) : question.type === "MATCHING" && question.pairs?.length ? (
                 <MatchingQuestion
                   questionId={question.id}
                   pairs={question.pairs}
                   submitted={submitted}
-                  onAnswer={(questionId, value) => setAnswers((current) => ({ ...current, [questionId]: value }))}
+                  initialValue={savedAttempt?.answers?.[question.id] ?? ""}
+                  onAnswer={updateAnswer}
                 />
               ) : isChoice ? (
                 <div className="option-list">
                   {question.options!.map((option) => (
-                    <label className={`option-item ${answers[question.id] === option.text ? "is-selected" : ""}`} key={option.label}>
-                      <input type="radio" name={question.id} value={option.text} onChange={(e) => setAnswers({ ...answers, [question.id]: e.target.value })} />
+                    <label className={`option-item ${answer === option.text ? "is-selected" : ""}`} key={option.label}>
+                      <input type="radio" name={question.id} value={option.text} checked={answer === option.text} onChange={(e) => updateAnswer(question.id, e.target.value)} />
                       <span className="option-label">{option.label}</span>
                       <span>{option.text}</span>
                     </label>
                   ))}
                 </div>
               ) : (
-                <input className="text-input answer-input" placeholder="Tulis jawaban..." value={answers[question.id] ?? ""} onChange={(e) => setAnswers({ ...answers, [question.id]: e.target.value })} />
+                <input className="text-input answer-input" placeholder="Tulis jawaban..." value={answer} onChange={(e) => updateAnswer(question.id, e.target.value)} />
               )}
               {submitted ? (
                 <div className={`feedback ${isCorrect ? "correct" : "wrong"}`}>
@@ -153,7 +203,7 @@ export function QuizRenderer({ quizId, questions }: Props) {
         })}
       </div>
       <div className="quiz-submit-row">
-        <button className="primary-button" type="button" onClick={submitQuiz} disabled={saving || !questions.length}>{saving ? <Loader2 size={16} className="spin" /> : <Headphones size={16} />} {saving ? "Menyimpan..." : "Selesai dan Simpan Nilai"}</button>
+        <button className="primary-button" type="button" onClick={submitQuiz} disabled={saving || !questions.length}>{saving ? <Loader2 size={16} className="spin" /> : <Headphones size={16} />} {saving ? "Menyimpan..." : savedAttempt ? "Simpan Percobaan Baru" : "Selesai dan Simpan Nilai"}</button>
         {saveMessage ? <span className="save-message">{saveMessage}</span> : null}
       </div>
     </section>
