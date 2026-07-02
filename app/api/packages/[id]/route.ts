@@ -27,7 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const user = await requireRole(["TEACHER", "SUPER_ADMIN"]);
   const { id } = await params;
   const permission = await canEditPackage(id, user);
-  if (!permission) return NextResponse.json({ ok: false, message: "Paket tidak ditemukan." }, { status: 404 });
+  if (permission === null) return NextResponse.json({ ok: false, message: "Paket tidak ditemukan." }, { status: 404 });
   if (permission === false) return NextResponse.json({ ok: false, message: "Anda tidak berhak mengubah paket ini." }, { status: 403 });
 
   const json = await request.json().catch(() => null);
@@ -58,7 +58,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const user = await requireRole(["TEACHER", "SUPER_ADMIN"]);
   const { id } = await params;
   const permission = await canEditPackage(id, user);
-  if (!permission) return NextResponse.json({ ok: false, message: "Paket tidak ditemukan." }, { status: 404 });
+  if (permission === null) return NextResponse.json({ ok: false, message: "Paket tidak ditemukan." }, { status: 404 });
   if (permission === false) return NextResponse.json({ ok: false, message: "Anda tidak berhak menghapus paket ini." }, { status: 403 });
 
   await prisma.material.updateMany({ where: { packageId: id }, data: { packageId: null } });
